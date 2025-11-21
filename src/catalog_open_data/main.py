@@ -5,6 +5,7 @@ import json
 FS_SERVICES_INDEX_URL = "https://apps.fs.usda.gov/arcx/rest/services?f=pjson"
 SERVICE_CATALOG_FILE = "service_catalog.json"
 
+
 def main() -> None:
     resp = requests.get(FS_SERVICES_INDEX_URL)
     if not resp.ok:
@@ -18,11 +19,12 @@ def main() -> None:
         rprint("[yellow]No service folders found in the response.[/yellow]")
         return
     else:
-
         service_folders = {}
 
         for folder in folders:
-            service_folder_url = f"https://apps.fs.usda.gov/arcx/rest/services/{folder}?f=pjson"
+            service_folder_url = (
+                f"https://apps.fs.usda.gov/arcx/rest/services/{folder}?f=pjson"
+            )
             service_folder_resp = requests.get(service_folder_url)
             service_folders[folder] = service_folder_resp.json()
 
@@ -32,12 +34,15 @@ def main() -> None:
                 service_type = folder_service.get("type", "unknown_type")
                 service_mapserver_url = f"https://apps.fs.usda.gov/arcx/rest/services/{service_name}/{service_type}?f=pjson"
                 service_mapserver_resp = requests.get(service_mapserver_url)
-                service_folders[folder]["services"][idx]["mapserver_details"] = service_mapserver_resp.json()
+                service_folders[folder]["services"][idx]["mapserver_details"] = (
+                    service_mapserver_resp.json()
+                )
 
         with open(SERVICE_CATALOG_FILE, "w", encoding="utf-8") as f:
             json.dump(service_folders, f, ensure_ascii=False, indent=2)
 
         rprint(f"[green]Wrote service folders to {SERVICE_CATALOG_FILE}[/green]")
+
 
 if __name__ == "__main__":
     main()
