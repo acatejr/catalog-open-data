@@ -1,3 +1,7 @@
+# Init ignore rules
+.venv/
+*.json
+
 .streamlit/
 adhoc_catalog.db
 tmp/
