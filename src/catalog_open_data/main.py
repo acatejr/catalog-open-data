@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 FS_SERVICES_INDEX_URL = "https://apps.fs.usda.gov/arcx/rest/services?f=pjson"
-SERVICE_CATALOG_FILE = "service_catalog.json"
 BASE_DATA_DIR = "data"
-
+SERVICE_CATALOG_FILE = f"./{BASE_DATA_DIR}/service_catalog.json"
 
 def create_directories(base_path: str, subdirs: Optional[Iterable[str]] = None) -> None:
     """
@@ -47,7 +46,7 @@ def main() -> None:
         service_folders = {}
 
         for folder in folders:
-            create_directories(BASE_DATA_DIR, subdirs=[folder])
+            # create_directories(BASE_DATA_DIR, subdirs=[folder])
 
             service_folder_url = (
                 f"https://apps.fs.usda.gov/arcx/rest/services/{folder}?f=pjson"
@@ -58,21 +57,20 @@ def main() -> None:
             folder_services = service_folders[folder].get("services", [])
             for idx, folder_service in enumerate(folder_services):
                 service_name = folder_service.get("name", "unknown_service")
-                create_directories(BASE_DATA_DIR, subdirs=[service_name])
+                # create_directories(BASE_DATA_DIR, subdirs=[service_name])
+                service_type = folder_service.get("type", "unknown_type")
+                service_mapserver_url = f"https://apps.fs.usda.gov/arcx/rest/services/{service_name}/{service_type}?f=pjson"
+                rprint(f"[blue]Fetching details for service:[/blue] {service_mapserver_url}")
+                service_mapserver_resp = requests.get(service_mapserver_url)
+                service_folders[folder]["services"][idx]["mapserver_details"] = (
+                    service_mapserver_resp.json()
+                )
+
+            with open(SERVICE_CATALOG_FILE, "w", encoding="utf-8") as f:
+                json.dump(service_folders, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     main()
-
-
-#         service_type = folder_service.get("type", "unknown_type")
-#         service_mapserver_url = f"https://apps.fs.usda.gov/arcx/rest/services/{service_name}/{service_type}?f=pjson"
-#         service_mapserver_resp = requests.get(service_mapserver_url)
-#         service_folders[folder]["services"][idx]["mapserver_details"] = (
-#             service_mapserver_resp.json()
-#         )
-
-# with open(SERVICE_CATALOG_FILE, "w", encoding="utf-8") as f:
-#     json.dump(service_folders, f, ensure_ascii=False, indent=2)
 
 # rprint(f"[green]Wrote service folders to {SERVICE_CATALOG_FILE}[/green]")
 
