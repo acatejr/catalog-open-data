@@ -1,0 +1,15 @@
+GEMINI.md
+download.sh
+.gemini_api_key
+.venv/
+.ruff_cache
+scratch/
+__pycache__/
+.env
+.env.local
+.env.dev
+.env.development
+.env.tst
+.env.test
+.env.prd
+.env.production

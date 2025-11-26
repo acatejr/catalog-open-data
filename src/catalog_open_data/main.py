@@ -1,76 +1,103 @@
-from rich import print as rprint
-import requests
+try:
+    from rich import print as rprint
+except ModuleNotFoundError:  # pragma: no cover - fallback when rich is absent
+    def rprint(*args, **kwargs):
+        print(*args, **kwargs)
+import click
+import os
 import json
-from pathlib import Path
-from typing import Iterable, Optional
+from pydantic import ValidationError
+from catalog_open_data.schema import MapServer
 
-FS_SERVICES_INDEX_URL = "https://apps.fs.usda.gov/arcx/rest/services?f=pjson"
-BASE_DATA_DIR = "data"
-SERVICE_CATALOG_FILE = f"./{BASE_DATA_DIR}/service_catalog.json"
+DATA_DIR = "./data"
 
-def create_directories(base_path: str, subdirs: Optional[Iterable[str]] = None) -> None:
+
+@click.group()
+def cli():
+    """Catalog Open Data CLI."""
+
+    if not os.path.exists(DATA_DIR):
+        rprint(
+            f"[yellow]Data directory '{DATA_DIR}' does not exist. Creating it...[/yellow]"
+        )
+        os.makedirs(DATA_DIR)
+
+
+@cli.command()
+def health_check():
+    """Check the health of the Catalog Open Data application."""
+    rprint("[bold blue]Health check passed![/bold blue]")
+
+
+@cli.command()
+@click.argument("name")
+def greet(name):
+    """Greet a user by name."""
+    rprint(f"[green]Hello, {name}![/green]")
+
+
+@cli.command()
+def list_data():
+    """List files in the data directory."""
+    if not os.path.exists(DATA_DIR):
+        rprint(f"[red]Data directory '{DATA_DIR}' does not exist.[/red]")
+        return
+
+    files = os.listdir(DATA_DIR)
+    if not files:
+        rprint("[yellow]No files found in the data directory.[/yellow]")
+    else:
+        rprint("[bold blue]Files in the data directory:[/bold blue]")
+        for file in files:
+            rprint(f" - {file}")
+
+
+@cli.command()
+def crawl_data():
+    """Crawl data files in the data directory."""
+
+    json_files = []
+    # Crawl over the JSON files in the data directory
+    for root, _, files in os.walk(DATA_DIR):
+        for file in files:
+            if file.endswith(".json"):
+                if file not in ["opencode.json", "catalog.json", "_index.json"]:
+                    file_path = os.path.join(root, file)
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        json_obj = json.load(f)
+                        mapserver = create_mapserver_from_json(json_obj)
+                        rprint(
+                            f"[green]Validated MapServer JSON file:[/green] {mapserver.documentInfo}"
+                        )
+
+                    # json_files.append(file_path)
+                    # rprint(f"[green]Found JSON file:[/green] {file}")
+
+    rprint(
+        f"[bold blue]Found {len(json_files)} JSON files in the data directory.[/bold blue]"
+    )
+
+
+def create_mapserver_from_json(json_data: dict) -> MapServer:
     """
-    Ensure a base directory exists and optionally create multiple subdirectories under it.
-
+    Parses and validates a JSON dict into a MapServer Pydantic model.
     Args:
-        base_path: The root directory to create.
-        subdirs: An optional iterable of subdirectory paths (relative to base_path) to create.
+        json_data (dict): The JSON data as a dictionary.
+    Returns:
+        MapServer: The populated MapServer instance.
+    Raises:
+        ValidationError: If the JSON data does not match the MapServer schema.
     """
     try:
-        base = Path(base_path)
-        base.mkdir(parents=True, exist_ok=True)
-
-        if subdirs:
-            for sd in subdirs:
-                sub_path = base.joinpath(sd)
-                sub_path.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        rprint(f"[red]Failed to create directories for {base_path}:[/red] {exc}")
+        return MapServer.model_validate(json_data)
+    except ValidationError as e:
+        raise ValueError(f"Invalid JSON data for MapServer: {e}")
 
 
-def main() -> None:
+def main():
+    cli()
 
-    resp = requests.get(FS_SERVICES_INDEX_URL)
-
-    if not resp.ok:
-        rprint(f"[red]Failed to fetch data from {FS_SERVICES_INDEX_URL}[/red]")
-        return
-
-    data = resp.json()
-    folders = data.get("folders", [])
-
-    if not folders:
-        rprint("[yellow]No service folders found in the response.[/yellow]")
-        return
-    else:
-        service_folders = {}
-
-        for folder in folders:
-            # create_directories(BASE_DATA_DIR, subdirs=[folder])
-
-            service_folder_url = (
-                f"https://apps.fs.usda.gov/arcx/rest/services/{folder}?f=pjson"
-            )
-            service_folder_resp = requests.get(service_folder_url)
-            service_folders[folder] = service_folder_resp.json()
-
-            folder_services = service_folders[folder].get("services", [])
-            for idx, folder_service in enumerate(folder_services):
-                service_name = folder_service.get("name", "unknown_service")
-                # create_directories(BASE_DATA_DIR, subdirs=[service_name])
-                service_type = folder_service.get("type", "unknown_type")
-                service_mapserver_url = f"https://apps.fs.usda.gov/arcx/rest/services/{service_name}/{service_type}?f=pjson"
-                rprint(f"[blue]Fetching details for service:[/blue] {service_mapserver_url}")
-                service_mapserver_resp = requests.get(service_mapserver_url)
-                service_folders[folder]["services"][idx]["mapserver_details"] = (
-                    service_mapserver_resp.json()
-                )
-
-            with open(SERVICE_CATALOG_FILE, "w", encoding="utf-8") as f:
-                json.dump(service_folders, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
-    main()
-
-# rprint(f"[green]Wrote service folders to {SERVICE_CATALOG_FILE}[/green]")
-
+    crawl_data()
+    # main()
