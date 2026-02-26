@@ -63,3 +63,6 @@ The application has a single entry point defined in `pyproject.toml` as the `cod
 - The main script performs synchronous HTTP requests without rate limiting applied yet
 - Error handling is present for the root request but commented out for nested requests (lines 46-78 in main.py)
 - Output file is always `service_catalog.json` in the current directory
+
+## Claude Instructions
+- Do not read the files in the data folder unless specifically requested.
